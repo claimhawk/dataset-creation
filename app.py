@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.11
 """
-Streamlit UI for UI-TARS dataset creation (Cloud-enabled with MongoDB)
+Streamlit UI for ClaimHawk dataset creation (Cloud-enabled with MongoDB)
 """
 
 import streamlit as st
@@ -13,12 +13,73 @@ from db_client import DatasetDB
 
 # Page config
 st.set_page_config(
-    page_title="UI-TARS Dataset Creator",
-    page_icon="🤖",
-    layout="centered"
+    page_title="ClaimHawk Dataset Creator",
+    page_icon="🦅",
+    layout="centered",
+    initial_sidebar_state="collapsed",
+    menu_items={
+        'Get Help': None,
+        'Report a bug': None,
+        'About': None
+    }
 )
 
-st.title("🤖 UI-TARS Dataset Creator")
+# Hide Streamlit UI elements
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+# ============================================================================
+# Authentication
+# ============================================================================
+def check_auth():
+    """Check if user is authenticated"""
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if st.session_state.authenticated:
+        return True
+
+    # Login form
+    st.title("🦅 ClaimHawk Dataset Creator")
+    st.markdown("### Login")
+
+    with st.form("login_form"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submit = st.form_submit_button("Login")
+
+        if submit:
+            # Get credentials from secrets
+            try:
+                users = st.secrets.get("users", {})
+                if username in users and users[username] == password:
+                    st.session_state.authenticated = True
+                    st.session_state.username = username
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid username or password")
+            except Exception as e:
+                st.error(f"Authentication error: {e}")
+
+    return False
+
+if not check_auth():
+    st.stop()
+
+# Show logout button
+col1, col2 = st.columns([5, 1])
+with col2:
+    if st.button("Logout"):
+        st.session_state.authenticated = False
+        st.rerun()
+
+st.title("🦅 ClaimHawk Dataset Creator")
 st.markdown("Create training datasets by annotating screenshots with tasks and actions")
 
 # Initialize database connection
@@ -51,57 +112,61 @@ def get_db():
 
 try:
     db = get_db()
-    st.sidebar.success("✅ Connected to MongoDB")
 except Exception as e:
     st.error(f"Failed to connect: {e}")
     st.stop()
 
 # Initialize session state
 if 'current_dataset' not in st.session_state:
-    st.session_state.current_dataset = "my_dataset"
+    st.session_state.current_dataset = "claimhawk_dataset"
 
 # ============================================================================
-# Sidebar - Dataset Management
+# Dataset Management (inline, no sidebar)
 # ============================================================================
-st.sidebar.header("📊 Dataset")
 
 # List existing datasets
 datasets = db.get_all_datasets()
 dataset_names = [d['name'] for d in datasets] if datasets else []
 
-if dataset_names:
-    selected_dataset = st.sidebar.selectbox(
-        "Select Dataset",
-        options=dataset_names,
-        index=0
-    )
-    st.session_state.current_dataset = selected_dataset
-else:
-    st.sidebar.info("No datasets yet. Create one below.")
-    st.session_state.current_dataset = "my_dataset"
+col1, col2 = st.columns([2, 1])
 
-# New dataset creation
-with st.sidebar.expander("➕ Create New Dataset"):
-    new_dataset_name = st.text_input("Dataset Name", value="", key="new_dataset_name")
-    new_dataset_desc = st.text_area("Description (optional)", value="", key="new_dataset_desc", height=80)
+with col1:
+    if dataset_names:
+        selected_dataset = st.selectbox(
+            "📊 Select Dataset",
+            options=dataset_names,
+            index=0 if st.session_state.current_dataset not in dataset_names else dataset_names.index(st.session_state.current_dataset)
+        )
+        st.session_state.current_dataset = selected_dataset
+    else:
+        st.info("No datasets yet. Create one below.")
+        st.session_state.current_dataset = "claimhawk_dataset"
 
-    if st.button("Create Dataset", key="create_dataset_btn"):
-        if new_dataset_name:
-            db.create_dataset(new_dataset_name, new_dataset_desc)
-            st.session_state.current_dataset = new_dataset_name
-            st.success(f"Created dataset: {new_dataset_name}")
-            st.rerun()
-        else:
-            st.error("Please enter a dataset name")
+with col2:
+    stats = db.get_dataset_stats(st.session_state.current_dataset)
+    if stats:
+        st.metric("Total Samples", stats['sample_count'])
+    else:
+        st.metric("Total Samples", 0)
 
-# Dataset stats
+# New dataset creation (admin only)
+if st.session_state.username == "admin":
+    with st.expander("➕ Create New Dataset"):
+        new_dataset_name = st.text_input("Dataset Name", value="", key="new_dataset_name")
+        new_dataset_desc = st.text_area("Description (optional)", value="", key="new_dataset_desc", height=80)
+
+        if st.button("Create Dataset", key="create_dataset_btn"):
+            if new_dataset_name:
+                db.create_dataset(new_dataset_name, new_dataset_desc)
+                st.session_state.current_dataset = new_dataset_name
+                st.success(f"Created dataset: {new_dataset_name}")
+                st.rerun()
+            else:
+                st.error("Please enter a dataset name")
+
+st.divider()
+
 stats = db.get_dataset_stats(st.session_state.current_dataset)
-if stats:
-    st.sidebar.metric("Total Samples", stats['sample_count'])
-    st.sidebar.caption(f"Created: {stats['created_at'].strftime('%Y-%m-%d')}")
-else:
-    st.sidebar.metric("Total Samples", 0)
-    st.sidebar.caption(f"Dataset: {st.session_state.current_dataset}")
 
 # ============================================================================
 # Main Form - Add Sample
