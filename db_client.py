@@ -46,7 +46,15 @@ class DatasetDB:
                 "MONGODB_URI not provided. Set as environment variable or pass to constructor."
             )
 
-        self.client = MongoClient(mongodb_uri)
+        # Add TLS/SSL parameters for Python 3.13+ compatibility
+        self.client = MongoClient(
+            mongodb_uri,
+            tls=True,
+            tlsAllowInvalidCertificates=False,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=5000,
+            socketTimeoutMS=5000
+        )
         self.db = self.client['ui_tars']
         self.datasets = self.db['datasets']
         self.samples = self.db['samples']
