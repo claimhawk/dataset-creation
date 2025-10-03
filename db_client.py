@@ -14,6 +14,13 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+# Try to import streamlit for secrets (optional)
+try:
+    import streamlit as st
+    HAS_STREAMLIT = True
+except ImportError:
+    HAS_STREAMLIT = False
+
 
 class DatasetDB:
     def __init__(self, mongodb_uri=None):
@@ -21,10 +28,18 @@ class DatasetDB:
         Initialize MongoDB connection
 
         Args:
-            mongodb_uri: MongoDB connection string. If None, reads from MONGODB_URI env var
+            mongodb_uri: MongoDB connection string. If None, reads from MONGODB_URI env var or Streamlit secrets
         """
         if mongodb_uri is None:
-            mongodb_uri = os.getenv('MONGODB_URI')
+            # Try Streamlit secrets first, then env var
+            if HAS_STREAMLIT:
+                try:
+                    mongodb_uri = st.secrets.get("MONGODB_URI")
+                except:
+                    pass
+
+            if not mongodb_uri:
+                mongodb_uri = os.getenv('MONGODB_URI')
 
         if not mongodb_uri:
             raise ValueError(
