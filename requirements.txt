@@ -1,0 +1,5 @@
+streamlit>=1.28.0
+pillow>=10.0.0
+pymongo>=4.15.2
+dnspython>=2.8.0
+python-dotenv>=1.1.1
