@@ -207,7 +207,7 @@ with st.form("annotation_form", clear_on_submit=True):
     # Action type selector (from UI-TARS action_parser.py)
     action_type = st.selectbox(
         "Action Type",
-        options=["click", "left_single", "left_double", "right_single", "hover",
+        options=["click", "left_double", "right_single", "hover",
                  "type", "hotkey", "press", "keydown", "keyup",
                  "drag", "select", "scroll", "finished", "custom"],
         key="action_type_select"
@@ -217,7 +217,7 @@ with st.form("annotation_form", clear_on_submit=True):
     action = ""
     action_params = {}
 
-    if action_type in ["click", "left_single", "left_double", "right_single", "hover"]:
+    if action_type in ["click", "left_double", "right_single", "hover"]:
         col1, col2 = st.columns(2)
         with col1:
             x = st.text_input("X coordinate", value="", placeholder="1710", key="coord_x")
