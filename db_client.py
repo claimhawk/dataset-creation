@@ -51,9 +51,9 @@ class DatasetDB:
             mongodb_uri,
             tls=True,
             tlsAllowInvalidCertificates=False,
-            serverSelectionTimeoutMS=5000,
-            connectTimeoutMS=5000,
-            socketTimeoutMS=5000
+            serverSelectionTimeoutMS=30000,  # 30 seconds
+            connectTimeoutMS=30000,
+            socketTimeoutMS=60000  # 60 seconds for write operations
         )
         self.db = self.client['ui_tars']
         self.datasets = self.db['datasets']
