@@ -204,13 +204,35 @@ with st.form("annotation_form", clear_on_submit=True):
         key="thought_input"
     )
 
-    # Action
-    action = st.text_input(
-        "Action",
-        placeholder="e.g., click(point='<point>1710 100</point>')",
-        help="The action command to execute",
-        key="action_input"
-    )
+    # Action type selector
+    action_templates = {
+        "click": "click(point='<point>x y</point>')",
+        "double-click": "left_double(point='<point>x y</point>')",
+        "right-click": "right_single(point='<point>x y</point>')",
+        "type": "type(content='text here')",
+        "hotkey": "hotkey(key='cmd c')",
+        "scroll": "scroll(point='<point>x y</point>', direction='up')",
+        "drag": "drag(start_point='<point>x1 y1</point>', end_point='<point>x2 y2</point>')",
+        "finished": "finished(content='Task completed')",
+        "custom": ""
+    }
+
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        action_type = st.selectbox(
+            "Action Type",
+            options=list(action_templates.keys()),
+            key="action_type_select"
+        )
+
+    with col2:
+        action = st.text_input(
+            "Action Command",
+            value=action_templates[action_type],
+            placeholder="e.g., click(point='<point>1710 100</point>')",
+            help="Edit the action template with actual values",
+            key="action_input"
+        )
 
     st.divider()
 
