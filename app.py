@@ -207,12 +207,13 @@ with st.form("annotation_form", clear_on_submit=True):
     # Action type selector
     action_templates = {
         "click": "click(point='<point>x y</point>')",
-        "double-click": "left_double(point='<point>x y</point>')",
-        "right-click": "right_single(point='<point>x y</point>')",
+        "left_double": "left_double(point='<point>x y</point>')",
+        "right_single": "right_single(point='<point>x y</point>')",
         "type": "type(content='text here')",
-        "hotkey": "hotkey(key='cmd c')",
-        "scroll": "scroll(point='<point>x y</point>', direction='up')",
+        "hotkey": "hotkey(key='ctrl c')",
         "drag": "drag(start_point='<point>x1 y1</point>', end_point='<point>x2 y2</point>')",
+        "scroll": "scroll(point='<point>x y</point>', direction='up')",
+        "wait": "wait()",
         "finished": "finished(content='Task completed')",
         "custom": ""
     }
@@ -228,12 +229,13 @@ with st.form("annotation_form", clear_on_submit=True):
     with col2:
         placeholders = {
             "click": "click(point='<point>1710 100</point>')",
-            "double-click": "left_double(point='<point>1710 100</point>')",
-            "right-click": "right_single(point='<point>1710 100</point>')",
+            "left_double": "left_double(point='<point>1710 100</point>')",
+            "right_single": "right_single(point='<point>1710 100</point>')",
             "type": "type(content='Hello World')",
-            "hotkey": "hotkey(key='cmd c')",
-            "scroll": "scroll(point='<point>800 600</point>', direction='down')",
+            "hotkey": "hotkey(key='ctrl c')",
             "drag": "drag(start_point='<point>100 100</point>', end_point='<point>500 500</point>')",
+            "scroll": "scroll(point='<point>800 600</point>', direction='down')",
+            "wait": "wait()",
             "finished": "finished(content='Successfully completed task')",
             "custom": "Enter custom action here"
         }
