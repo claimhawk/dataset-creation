@@ -188,9 +188,29 @@ if uploaded_file:
 
 st.divider()
 
+# Check if we're cloning or editing a sample
+default_task = ""
+default_thought = ""
+default_action_type = "click"
+editing_sample_id = None
+
+if 'clone_sample' in st.session_state:
+    default_task = st.session_state.clone_sample['task']
+    default_thought = st.session_state.clone_sample['thought']
+    default_action_type = st.session_state.clone_sample['action_type']
+    st.info("📋 Cloning sample - modify and submit to create a new one")
+
+if 'edit_sample' in st.session_state:
+    default_task = st.session_state.edit_sample['task']
+    default_thought = st.session_state.edit_sample['thought']
+    default_action_type = st.session_state.edit_sample['action_type']
+    editing_sample_id = st.session_state.edit_sample['id']
+    st.warning(f"✏️ Editing sample - submit to update (original will be replaced)")
+
 # Task Description
 task = st.text_input(
     "Task Description",
+    value=default_task,
     placeholder="e.g., Click on Chrome icon in dock",
     help="What should the agent do in this screenshot?",
     key="task_input"
@@ -199,6 +219,7 @@ task = st.text_input(
 # Thought (optional)
 thought = st.text_area(
     "Thought (optional)",
+    value=default_thought,
     placeholder="e.g., Chrome is in the right dock at x=1710, y=100",
     help="Reasoning about how to accomplish the task",
     height=80,
@@ -210,9 +231,15 @@ action_types = list(ACTION_CONFIG.keys()) + ["custom"]
 action_type = st.selectbox(
     "Action Type",
     options=action_types,
+    index=action_types.index(default_action_type) if default_action_type in action_types else 0,
     format_func=lambda x: f"{x} - {ACTION_CONFIG[x]['description']}" if x in ACTION_CONFIG else "custom - Custom action",
     key="action_type_select"
 )
+
+# Debug info
+st.caption(f"Selected action type: **{action_type}**")
+if action_type in ACTION_CONFIG:
+    st.caption(f"Number of fields: **{len(ACTION_CONFIG[action_type]['fields'])}**")
 
 # Dynamic fields based on action configuration
 action = ""
@@ -326,9 +353,10 @@ st.code(action if action else f"{action_type}(...)", language="python")
 st.divider()
 
 # Submit button
-if st.button("➕ Add to Dataset", type="primary", use_container_width=True):
+button_label = "💾 Update Sample" if editing_sample_id else "➕ Add to Dataset"
+if st.button(button_label, type="primary", use_container_width=True):
     # Validate inputs
-    if not uploaded_file:
+    if not uploaded_file and not editing_sample_id:
         st.error("Please upload a screenshot")
     elif not task:
         st.error("Please enter a task description")
@@ -336,9 +364,22 @@ if st.button("➕ Add to Dataset", type="primary", use_container_width=True):
         st.error("Please enter an action")
     else:
         try:
-            # Read image bytes
-            uploaded_file.seek(0)  # Reset file pointer
-            image_bytes = uploaded_file.read()
+            # Get image bytes
+            if uploaded_file:
+                uploaded_file.seek(0)  # Reset file pointer
+                image_bytes = uploaded_file.read()
+            elif 'edit_sample' in st.session_state:
+                # Use existing image from edit_sample
+                import base64
+                image_bytes = base64.b64decode(st.session_state.edit_sample['image_data'])
+            else:
+                st.error("No image available")
+                st.stop()
+
+            # If editing, delete the old sample first
+            if editing_sample_id:
+                db.delete_sample(editing_sample_id)
+                st.info("Deleted original sample...")
 
             # Add to database with action type and params
             sample_id = db.add_sample(
@@ -351,7 +392,14 @@ if st.button("➕ Add to Dataset", type="primary", use_container_width=True):
                 action_params=action_params
             )
 
-            st.success(f"✅ Added sample to {st.session_state.current_dataset}!")
+            # Clear clone/edit state
+            if 'clone_sample' in st.session_state:
+                del st.session_state.clone_sample
+            if 'edit_sample' in st.session_state:
+                del st.session_state.edit_sample
+
+            success_msg = "✅ Updated sample!" if editing_sample_id else f"✅ Added sample to {st.session_state.current_dataset}!"
+            st.success(success_msg)
             st.balloons()
             st.rerun()
 
@@ -434,7 +482,48 @@ if stats and stats['sample_count'] > 0:
 
                     st.markdown(f"**Action:** `{sample['action']}`")
 
+                    if sample.get('action_type'):
+                        st.markdown(f"**Action Type:** {sample['action_type']}")
+                    if sample.get('action_params'):
+                        st.markdown(f"**Params:** {sample['action_params']}")
+
                     st.caption(f"Created: {sample['created_at'].strftime('%Y-%m-%d %H:%M:%S')}")
+
+                    # Clone and Edit buttons
+                    col_a, col_b, col_c = st.columns(3)
+                    with col_a:
+                        if st.button("📋 Clone", key=f"clone_{sample['_id']}", use_container_width=True):
+                            # Store sample data in session state for cloning
+                            st.session_state.clone_sample = {
+                                'task': sample['task'],
+                                'thought': sample.get('thought', ''),
+                                'action': sample['action'],
+                                'action_type': sample.get('action_type', 'click'),
+                                'action_params': sample.get('action_params', {})
+                            }
+                            st.success("Sample copied! Scroll up to edit and submit.")
+                            st.rerun()
+
+                    with col_b:
+                        if st.button("✏️ Edit", key=f"edit_{sample['_id']}", use_container_width=True):
+                            # Store sample for editing (same as clone but we'll delete original on submit)
+                            st.session_state.edit_sample = {
+                                'id': str(sample['_id']),
+                                'task': sample['task'],
+                                'thought': sample.get('thought', ''),
+                                'action': sample['action'],
+                                'action_type': sample.get('action_type', 'click'),
+                                'action_params': sample.get('action_params', {}),
+                                'image_data': sample['image_data']
+                            }
+                            st.success("Editing mode! Scroll up to modify and submit.")
+                            st.rerun()
+
+                    with col_c:
+                        if st.button("🗑️ Delete", key=f"delete_{sample['_id']}", use_container_width=True, type="secondary"):
+                            db.delete_sample(str(sample['_id']))
+                            st.success("Deleted!")
+                            st.rerun()
 
     except Exception as e:
         st.error(f"Failed to load samples: {e}")
