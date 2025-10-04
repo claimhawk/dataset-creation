@@ -215,19 +215,27 @@ with st.form("annotation_form", clear_on_submit=True):
 
     # Dynamic fields based on action type
     action = ""
+    action_params = {}
 
     if action_type in ["click", "left_single", "left_double", "right_single", "hover"]:
         col1, col2 = st.columns(2)
         with col1:
-            x = st.text_input("X coordinate", value="<point>", placeholder="1710", key="coord_x")
+            x = st.text_input("X coordinate", value="", placeholder="1710", key="coord_x")
         with col2:
             y = st.text_input("Y coordinate", value="", placeholder="100", key="coord_y")
 
-        # Remove <point> prefix if user enters it
-        x_clean = x.replace("<point>", "").strip()
+        # Clean and parse coordinates (support comma-separated like "38,38" or space-separated "38 38")
+        if x and ',' in x:
+            # User entered "38,38" format
+            parts = x.split(',')
+            x_clean = parts[0].strip()
+            y = parts[1].strip() if len(parts) > 1 else y
+        else:
+            x_clean = x.replace("<point>", "").strip()
 
         if x_clean and y:
             action = f"{action_type}(point='<point>{x_clean} {y}</point>')"
+            action_params = {'x': x_clean, 'y': y}
         else:
             action = f"{action_type}(point='<point>x y</point>')"
 
@@ -235,6 +243,7 @@ with st.form("annotation_form", clear_on_submit=True):
         text_content = st.text_input("Text to type", value="", placeholder="Hello World", key="type_content")
         if text_content:
             action = f"type(content='{text_content}')"
+            action_params = {'content': text_content}
         else:
             action = "type(content='text here')"
 
@@ -242,13 +251,14 @@ with st.form("annotation_form", clear_on_submit=True):
         key_combo = st.text_input("Key combination", value="", placeholder="ctrl c" if action_type == "hotkey" else "enter", key="key_combo")
         if key_combo:
             action = f"{action_type}(key='{key_combo}')"
+            action_params = {'key': key_combo}
         else:
             action = f"{action_type}(key='{'ctrl c' if action_type == 'hotkey' else 'enter'}')"
 
     elif action_type in ["drag", "select"]:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            x1 = st.text_input("Start X", value="<point>", placeholder="100", key="drag_x1")
+            x1 = st.text_input("Start X", value="", placeholder="100", key="drag_x1")
         with col2:
             y1 = st.text_input("Start Y", value="", placeholder="100", key="drag_y1")
         with col3:
@@ -260,13 +270,14 @@ with st.form("annotation_form", clear_on_submit=True):
 
         if x1_clean and y1 and x2 and y2:
             action = f"{action_type}(start_point='<point>{x1_clean} {y1}</point>', end_point='<point>{x2} {y2}</point>')"
+            action_params = {'x1': x1_clean, 'y1': y1, 'x2': x2, 'y2': y2}
         else:
             action = f"{action_type}(start_point='<point>x1 y1</point>', end_point='<point>x2 y2</point>')"
 
     elif action_type == "scroll":
         col1, col2, col3 = st.columns(3)
         with col1:
-            x = st.text_input("X coordinate", value="<point>", placeholder="800", key="scroll_x")
+            x = st.text_input("X coordinate", value="", placeholder="800", key="scroll_x")
         with col2:
             y = st.text_input("Y coordinate", value="", placeholder="600", key="scroll_y")
         with col3:
@@ -276,6 +287,7 @@ with st.form("annotation_form", clear_on_submit=True):
 
         if x_clean and y:
             action = f"scroll(point='<point>{x_clean} {y}</point>', direction='{direction}')"
+            action_params = {'x': x_clean, 'y': y, 'direction': direction}
         else:
             action = f"scroll(point='<point>x y</point>', direction='{direction}')"
 
@@ -283,11 +295,13 @@ with st.form("annotation_form", clear_on_submit=True):
         message = st.text_input("Completion message", value="", placeholder="Task completed successfully", key="finished_msg")
         if message:
             action = f"finished(content='{message}')"
+            action_params = {'content': message}
         else:
             action = "finished(content='Task completed')"
 
     elif action_type == "custom":
         action = st.text_input("Custom Action", value="", placeholder="Enter custom action here", key="custom_action")
+        action_params = {'raw': action}
 
     # Display final action
     st.code(action if action else f"{action_type}(...)", language="python")
@@ -311,13 +325,15 @@ with st.form("annotation_form", clear_on_submit=True):
                 uploaded_file.seek(0)  # Reset file pointer
                 image_bytes = uploaded_file.read()
 
-                # Add to database
+                # Add to database with action type and params
                 sample_id = db.add_sample(
                     dataset_name=st.session_state.current_dataset,
                     image_bytes=image_bytes,
                     task=task,
                     thought=thought if thought else "",
-                    action=action
+                    action=action,
+                    action_type=action_type,
+                    action_params=action_params
                 )
 
                 st.success(f"✅ Added sample to {st.session_state.current_dataset}!")

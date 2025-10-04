@@ -76,7 +76,7 @@ class DatasetDB:
         result = self.datasets.insert_one(dataset)
         return str(result.inserted_id)
 
-    def add_sample(self, dataset_name, image_bytes, task, thought, action):
+    def add_sample(self, dataset_name, image_bytes, task, thought, action, action_type=None, action_params=None):
         """
         Add a training sample to dataset
 
@@ -85,7 +85,9 @@ class DatasetDB:
             image_bytes: Image data as bytes
             task: Task description
             thought: Reasoning (optional, can be empty string)
-            action: Action to perform
+            action: Action to perform (formatted string)
+            action_type: Type of action (e.g., 'click', 'type', 'drag')
+            action_params: Dictionary of action parameters (e.g., {'x': '38', 'y': '38'})
 
         Returns:
             Sample ID
@@ -108,6 +110,8 @@ class DatasetDB:
             'task': task,
             'thought': thought,
             'action': action,
+            'action_type': action_type,  # Store action type
+            'action_params': action_params if action_params else {},  # Store raw parameters
             'created_at': datetime.utcnow(),
             'conversations': [
                 {
