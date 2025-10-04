@@ -226,10 +226,22 @@ with st.form("annotation_form", clear_on_submit=True):
         )
 
     with col2:
+        placeholders = {
+            "click": "click(point='<point>1710 100</point>')",
+            "double-click": "left_double(point='<point>1710 100</point>')",
+            "right-click": "right_single(point='<point>1710 100</point>')",
+            "type": "type(content='Hello World')",
+            "hotkey": "hotkey(key='cmd c')",
+            "scroll": "scroll(point='<point>800 600</point>', direction='down')",
+            "drag": "drag(start_point='<point>100 100</point>', end_point='<point>500 500</point>')",
+            "finished": "finished(content='Successfully completed task')",
+            "custom": "Enter custom action here"
+        }
+
         action = st.text_input(
             "Action Command",
             value=action_templates[action_type],
-            placeholder="e.g., click(point='<point>1710 100</point>')",
+            placeholder=placeholders[action_type],
             help="Edit the action template with actual values",
             key="action_input"
         )
