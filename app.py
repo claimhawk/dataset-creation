@@ -204,49 +204,93 @@ with st.form("annotation_form", clear_on_submit=True):
         key="thought_input"
     )
 
-    # Action type selector
-    action_templates = {
-        "click": "click(point='<point>x y</point>')",
-        "left_double": "left_double(point='<point>x y</point>')",
-        "right_single": "right_single(point='<point>x y</point>')",
-        "type": "type(content='text here')",
-        "hotkey": "hotkey(key='ctrl c')",
-        "drag": "drag(start_point='<point>x1 y1</point>', end_point='<point>x2 y2</point>')",
-        "scroll": "scroll(point='<point>x y</point>', direction='up')",
-        "wait": "wait()",
-        "finished": "finished(content='Task completed')",
-        "custom": ""
-    }
+    # Action type selector (from UI-TARS action_parser.py)
+    action_type = st.selectbox(
+        "Action Type",
+        options=["click", "left_single", "left_double", "right_single", "hover",
+                 "type", "hotkey", "press", "keydown", "keyup",
+                 "drag", "select", "scroll", "finished", "custom"],
+        key="action_type_select"
+    )
 
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        action_type = st.selectbox(
-            "Action Type",
-            options=list(action_templates.keys()),
-            key="action_type_select"
-        )
+    # Dynamic fields based on action type
+    action = ""
 
-    with col2:
-        placeholders = {
-            "click": "click(point='<point>1710 100</point>')",
-            "left_double": "left_double(point='<point>1710 100</point>')",
-            "right_single": "right_single(point='<point>1710 100</point>')",
-            "type": "type(content='Hello World')",
-            "hotkey": "hotkey(key='ctrl c')",
-            "drag": "drag(start_point='<point>100 100</point>', end_point='<point>500 500</point>')",
-            "scroll": "scroll(point='<point>800 600</point>', direction='down')",
-            "wait": "wait()",
-            "finished": "finished(content='Successfully completed task')",
-            "custom": "Enter custom action here"
-        }
+    if action_type in ["click", "left_single", "left_double", "right_single", "hover"]:
+        col1, col2 = st.columns(2)
+        with col1:
+            x = st.text_input("X coordinate", value="<point>", placeholder="1710", key="coord_x")
+        with col2:
+            y = st.text_input("Y coordinate", value="", placeholder="100", key="coord_y")
 
-        action = st.text_input(
-            "Action Command",
-            value=action_templates[action_type],
-            placeholder=placeholders[action_type],
-            help="Edit the action template with actual values",
-            key="action_input"
-        )
+        # Remove <point> prefix if user enters it
+        x_clean = x.replace("<point>", "").strip()
+
+        if x_clean and y:
+            action = f"{action_type}(point='<point>{x_clean} {y}</point>')"
+        else:
+            action = f"{action_type}(point='<point>x y</point>')"
+
+    elif action_type == "type":
+        text_content = st.text_input("Text to type", value="", placeholder="Hello World", key="type_content")
+        if text_content:
+            action = f"type(content='{text_content}')"
+        else:
+            action = "type(content='text here')"
+
+    elif action_type in ["hotkey", "press", "keydown", "keyup"]:
+        key_combo = st.text_input("Key combination", value="", placeholder="ctrl c" if action_type == "hotkey" else "enter", key="key_combo")
+        if key_combo:
+            action = f"{action_type}(key='{key_combo}')"
+        else:
+            action = f"{action_type}(key='{'ctrl c' if action_type == 'hotkey' else 'enter'}')"
+
+    elif action_type in ["drag", "select"]:
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            x1 = st.text_input("Start X", value="<point>", placeholder="100", key="drag_x1")
+        with col2:
+            y1 = st.text_input("Start Y", value="", placeholder="100", key="drag_y1")
+        with col3:
+            x2 = st.text_input("End X", value="", placeholder="500", key="drag_x2")
+        with col4:
+            y2 = st.text_input("End Y", value="", placeholder="500", key="drag_y2")
+
+        x1_clean = x1.replace("<point>", "").strip()
+
+        if x1_clean and y1 and x2 and y2:
+            action = f"{action_type}(start_point='<point>{x1_clean} {y1}</point>', end_point='<point>{x2} {y2}</point>')"
+        else:
+            action = f"{action_type}(start_point='<point>x1 y1</point>', end_point='<point>x2 y2</point>')"
+
+    elif action_type == "scroll":
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            x = st.text_input("X coordinate", value="<point>", placeholder="800", key="scroll_x")
+        with col2:
+            y = st.text_input("Y coordinate", value="", placeholder="600", key="scroll_y")
+        with col3:
+            direction = st.selectbox("Direction", options=["up", "down", "left", "right"], key="scroll_dir")
+
+        x_clean = x.replace("<point>", "").strip()
+
+        if x_clean and y:
+            action = f"scroll(point='<point>{x_clean} {y}</point>', direction='{direction}')"
+        else:
+            action = f"scroll(point='<point>x y</point>', direction='{direction}')"
+
+    elif action_type == "finished":
+        message = st.text_input("Completion message", value="", placeholder="Task completed successfully", key="finished_msg")
+        if message:
+            action = f"finished(content='{message}')"
+        else:
+            action = "finished(content='Task completed')"
+
+    elif action_type == "custom":
+        action = st.text_input("Custom Action", value="", placeholder="Enter custom action here", key="custom_action")
+
+    # Display final action
+    st.code(action if action else f"{action_type}(...)", language="python")
 
     st.divider()
 
