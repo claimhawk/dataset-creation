@@ -10,6 +10,7 @@ from PIL import Image
 from io import BytesIO
 import json
 from db_client import DatasetDB
+from action_config import ACTION_CONFIG, parse_coordinates, build_action
 
 # Page config
 st.set_page_config(
@@ -205,103 +206,111 @@ with st.form("annotation_form", clear_on_submit=True):
     )
 
     # Action type selector (from UI-TARS action_parser.py)
+    action_types = list(ACTION_CONFIG.keys()) + ["custom"]
     action_type = st.selectbox(
         "Action Type",
-        options=["click", "left_double", "right_single", "hover",
-                 "type", "hotkey", "press", "keydown", "keyup",
-                 "drag", "select", "scroll", "finished", "custom"],
+        options=action_types,
+        format_func=lambda x: f"{x} - {ACTION_CONFIG[x]['description']}" if x in ACTION_CONFIG else "custom - Custom action",
         key="action_type_select"
     )
 
-    # Dynamic fields based on action type
+    # Dynamic fields based on action configuration
     action = ""
     action_params = {}
 
-    if action_type in ["click", "left_double", "right_single", "hover"]:
-        col1, col2 = st.columns(2)
-        with col1:
-            x = st.text_input("X coordinate", value="", placeholder="1710", key="coord_x")
-        with col2:
-            y = st.text_input("Y coordinate", value="", placeholder="100", key="coord_y")
-
-        # Clean and parse coordinates (support comma-separated like "38,38" or space-separated "38 38")
-        if x and ',' in x:
-            # User entered "38,38" format
-            parts = x.split(',')
-            x_clean = parts[0].strip()
-            y = parts[1].strip() if len(parts) > 1 else y
-        else:
-            x_clean = x.replace("<point>", "").strip()
-
-        if x_clean and y:
-            action = f"{action_type}(point='<point>{x_clean} {y}</point>')"
-            action_params = {'x': x_clean, 'y': y}
-        else:
-            action = f"{action_type}(point='<point>x y</point>')"
-
-    elif action_type == "type":
-        text_content = st.text_input("Text to type", value="", placeholder="Hello World", key="type_content")
-        if text_content:
-            action = f"type(content='{text_content}')"
-            action_params = {'content': text_content}
-        else:
-            action = "type(content='text here')"
-
-    elif action_type in ["hotkey", "press", "keydown", "keyup"]:
-        key_combo = st.text_input("Key combination", value="", placeholder="ctrl c" if action_type == "hotkey" else "enter", key="key_combo")
-        if key_combo:
-            action = f"{action_type}(key='{key_combo}')"
-            action_params = {'key': key_combo}
-        else:
-            action = f"{action_type}(key='{'ctrl c' if action_type == 'hotkey' else 'enter'}')"
-
-    elif action_type in ["drag", "select"]:
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            x1 = st.text_input("Start X", value="", placeholder="100", key="drag_x1")
-        with col2:
-            y1 = st.text_input("Start Y", value="", placeholder="100", key="drag_y1")
-        with col3:
-            x2 = st.text_input("End X", value="", placeholder="500", key="drag_x2")
-        with col4:
-            y2 = st.text_input("End Y", value="", placeholder="500", key="drag_y2")
-
-        x1_clean = x1.replace("<point>", "").strip()
-
-        if x1_clean and y1 and x2 and y2:
-            action = f"{action_type}(start_point='<point>{x1_clean} {y1}</point>', end_point='<point>{x2} {y2}</point>')"
-            action_params = {'x1': x1_clean, 'y1': y1, 'x2': x2, 'y2': y2}
-        else:
-            action = f"{action_type}(start_point='<point>x1 y1</point>', end_point='<point>x2 y2</point>')"
-
-    elif action_type == "scroll":
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            x = st.text_input("X coordinate", value="", placeholder="800", key="scroll_x")
-        with col2:
-            y = st.text_input("Y coordinate", value="", placeholder="600", key="scroll_y")
-        with col3:
-            direction = st.selectbox("Direction", options=["up", "down", "left", "right"], key="scroll_dir")
-
-        x_clean = x.replace("<point>", "").strip()
-
-        if x_clean and y:
-            action = f"scroll(point='<point>{x_clean} {y}</point>', direction='{direction}')"
-            action_params = {'x': x_clean, 'y': y, 'direction': direction}
-        else:
-            action = f"scroll(point='<point>x y</point>', direction='{direction}')"
-
-    elif action_type == "finished":
-        message = st.text_input("Completion message", value="", placeholder="Task completed successfully", key="finished_msg")
-        if message:
-            action = f"finished(content='{message}')"
-            action_params = {'content': message}
-        else:
-            action = "finished(content='Task completed')"
-
-    elif action_type == "custom":
+    if action_type == "custom":
         action = st.text_input("Custom Action", value="", placeholder="Enter custom action here", key="custom_action")
         action_params = {'raw': action}
+    elif action_type in ACTION_CONFIG:
+        config = ACTION_CONFIG[action_type]
+        fields = config["fields"]
+
+        # Dynamically create form fields based on configuration
+        field_values = {}
+
+        # Determine column layout based on number of fields
+        if len(fields) == 1:
+            field = fields[0]
+            if field["type"] == "text":
+                field_values[field["name"]] = st.text_input(
+                    field["label"],
+                    value="",
+                    placeholder=field["placeholder"],
+                    key=f"field_{field['name']}"
+                )
+            elif field["type"] == "select":
+                field_values[field["name"]] = st.selectbox(
+                    field["label"],
+                    options=field["options"],
+                    index=field["options"].index(field.get("default", field["options"][0])),
+                    key=f"field_{field['name']}"
+                )
+        elif len(fields) == 2:
+            col1, col2 = st.columns(2)
+            with col1:
+                field = fields[0]
+                field_values[field["name"]] = st.text_input(
+                    field["label"],
+                    value="",
+                    placeholder=field["placeholder"],
+                    key=f"field_{field['name']}"
+                )
+            with col2:
+                field = fields[1]
+                if field["type"] == "select":
+                    field_values[field["name"]] = st.selectbox(
+                        field["label"],
+                        options=field["options"],
+                        index=field["options"].index(field.get("default", field["options"][0])),
+                        key=f"field_{field['name']}"
+                    )
+                else:
+                    field_values[field["name"]] = st.text_input(
+                        field["label"],
+                        value="",
+                        placeholder=field["placeholder"],
+                        key=f"field_{field['name']}"
+                    )
+        elif len(fields) == 3:
+            col1, col2, col3 = st.columns(3)
+            for i, field in enumerate(fields):
+                with [col1, col2, col3][i]:
+                    if field["type"] == "select":
+                        field_values[field["name"]] = st.selectbox(
+                            field["label"],
+                            options=field["options"],
+                            index=field["options"].index(field.get("default", field["options"][0])),
+                            key=f"field_{field['name']}"
+                        )
+                    else:
+                        field_values[field["name"]] = st.text_input(
+                            field["label"],
+                            value="",
+                            placeholder=field["placeholder"],
+                            key=f"field_{field['name']}"
+                        )
+        elif len(fields) == 4:
+            col1, col2, col3, col4 = st.columns(4)
+            for i, field in enumerate(fields):
+                with [col1, col2, col3, col4][i]:
+                    field_values[field["name"]] = st.text_input(
+                        field["label"],
+                        value="",
+                        placeholder=field["placeholder"],
+                        key=f"field_{field['name']}"
+                    )
+
+        # Parse coordinates if comma-separated (e.g., "38,38")
+        if 'x' in field_values and field_values['x'] and ',' in field_values['x']:
+            x_val, y_val = parse_coordinates(field_values['x'])
+            field_values['x'] = x_val
+            if y_val and 'y' in field_values:
+                field_values['y'] = y_val
+
+        # Build action string
+        action = build_action(action_type, field_values)
+        if action:
+            action_params = field_values
 
     # Display final action
     st.code(action if action else f"{action_type}(...)", language="python")
