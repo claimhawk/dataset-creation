@@ -184,7 +184,7 @@ uploaded_file = st.file_uploader(
 
 # Show preview
 if uploaded_file:
-    st.image(uploaded_file, caption="Preview", use_column_width=True)
+    st.image(uploaded_file, caption="Preview", use_container_width=True)
 
 st.divider()
 
@@ -422,7 +422,7 @@ if stats and stats['sample_count'] > 0:
                     try:
                         image_data = base64.b64decode(sample['image_data'])
                         image = Image.open(BytesIO(image_data))
-                        st.image(image, use_column_width=True)
+                        st.image(image, use_container_width=True)
                     except Exception as e:
                         st.error(f"Failed to load image: {e}")
 
