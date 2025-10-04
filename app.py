@@ -172,91 +172,109 @@ stats = db.get_dataset_stats(st.session_state.current_dataset)
 # ============================================================================
 # Main Form - Add Sample
 # ============================================================================
-with st.form("annotation_form", clear_on_submit=True):
-    st.subheader("Add Training Sample")
+st.subheader("Add Training Sample")
 
-    # Image Upload with drag and drop
-    uploaded_file = st.file_uploader(
-        "📸 Screenshot (drag and drop or click to upload)",
-        type=['png', 'jpg', 'jpeg'],
-        help="Upload a screenshot to annotate"
-    )
+# Image Upload (outside form for preview)
+uploaded_file = st.file_uploader(
+    "📸 Screenshot (drag and drop or click to upload)",
+    type=['png', 'jpg', 'jpeg'],
+    help="Upload a screenshot to annotate",
+    key="image_uploader"
+)
 
-    # Show preview
-    if uploaded_file:
-        st.image(uploaded_file, caption="Preview", use_column_width=True)
+# Show preview
+if uploaded_file:
+    st.image(uploaded_file, caption="Preview", use_column_width=True)
 
-    st.divider()
+st.divider()
 
-    # Task Description
-    task = st.text_input(
-        "Task Description",
-        placeholder="e.g., Click on Chrome icon in dock",
-        help="What should the agent do in this screenshot?",
-        key="task_input"
-    )
+# Task Description
+task = st.text_input(
+    "Task Description",
+    placeholder="e.g., Click on Chrome icon in dock",
+    help="What should the agent do in this screenshot?",
+    key="task_input"
+)
 
-    # Thought (optional)
-    thought = st.text_area(
-        "Thought (optional)",
-        placeholder="e.g., Chrome is in the right dock at x=1710, y=100",
-        help="Reasoning about how to accomplish the task",
-        height=80,
-        key="thought_input"
-    )
+# Thought (optional)
+thought = st.text_area(
+    "Thought (optional)",
+    placeholder="e.g., Chrome is in the right dock at x=1710, y=100",
+    help="Reasoning about how to accomplish the task",
+    height=80,
+    key="thought_input"
+)
 
-    # Action type selector (from UI-TARS action_parser.py)
-    action_types = list(ACTION_CONFIG.keys()) + ["custom"]
-    action_type = st.selectbox(
-        "Action Type",
-        options=action_types,
-        format_func=lambda x: f"{x} - {ACTION_CONFIG[x]['description']}" if x in ACTION_CONFIG else "custom - Custom action",
-        key="action_type_select"
-    )
+# Action type selector (OUTSIDE form for reactivity)
+action_types = list(ACTION_CONFIG.keys()) + ["custom"]
+action_type = st.selectbox(
+    "Action Type",
+    options=action_types,
+    format_func=lambda x: f"{x} - {ACTION_CONFIG[x]['description']}" if x in ACTION_CONFIG else "custom - Custom action",
+    key="action_type_select"
+)
 
-    # Dynamic fields based on action configuration
-    action = ""
-    action_params = {}
+# Dynamic fields based on action configuration
+action = ""
+action_params = {}
 
-    if action_type == "custom":
-        action = st.text_input("Custom Action", value="", placeholder="Enter custom action here", key="custom_action")
-        action_params = {'raw': action}
-    elif action_type in ACTION_CONFIG:
-        config = ACTION_CONFIG[action_type]
-        fields = config["fields"]
+if action_type == "custom":
+    action = st.text_input("Custom Action", value="", placeholder="Enter custom action here", key="custom_action")
+    action_params = {'raw': action}
+elif action_type in ACTION_CONFIG:
+    config = ACTION_CONFIG[action_type]
+    fields = config["fields"]
 
-        # Dynamically create form fields based on configuration
-        field_values = {}
+    # Dynamically create form fields based on configuration
+    field_values = {}
 
-        # Determine column layout based on number of fields
-        if len(fields) == 1:
+    # Determine column layout based on number of fields
+    if len(fields) == 1:
+        field = fields[0]
+        if field["type"] == "text":
+            field_values[field["name"]] = st.text_input(
+                field["label"],
+                value="",
+                placeholder=field["placeholder"],
+                key=f"field_{field['name']}"
+            )
+        elif field["type"] == "select":
+            field_values[field["name"]] = st.selectbox(
+                field["label"],
+                options=field["options"],
+                index=field["options"].index(field.get("default", field["options"][0])),
+                key=f"field_{field['name']}"
+            )
+    elif len(fields) == 2:
+        col1, col2 = st.columns(2)
+        with col1:
             field = fields[0]
-            if field["type"] == "text":
-                field_values[field["name"]] = st.text_input(
-                    field["label"],
-                    value="",
-                    placeholder=field["placeholder"],
-                    key=f"field_{field['name']}"
-                )
-            elif field["type"] == "select":
+            field_values[field["name"]] = st.text_input(
+                field["label"],
+                value="",
+                placeholder=field["placeholder"],
+                key=f"field_{field['name']}"
+            )
+        with col2:
+            field = fields[1]
+            if field["type"] == "select":
                 field_values[field["name"]] = st.selectbox(
                     field["label"],
                     options=field["options"],
                     index=field["options"].index(field.get("default", field["options"][0])),
                     key=f"field_{field['name']}"
                 )
-        elif len(fields) == 2:
-            col1, col2 = st.columns(2)
-            with col1:
-                field = fields[0]
+            else:
                 field_values[field["name"]] = st.text_input(
                     field["label"],
                     value="",
                     placeholder=field["placeholder"],
                     key=f"field_{field['name']}"
                 )
-            with col2:
-                field = fields[1]
+    elif len(fields) == 3:
+        col1, col2, col3 = st.columns(3)
+        for i, field in enumerate(fields):
+            with [col1, col2, col3][i]:
                 if field["type"] == "select":
                     field_values[field["name"]] = st.selectbox(
                         field["label"],
@@ -271,28 +289,18 @@ with st.form("annotation_form", clear_on_submit=True):
                         placeholder=field["placeholder"],
                         key=f"field_{field['name']}"
                     )
-        elif len(fields) == 3:
-            col1, col2, col3 = st.columns(3)
-            for i, field in enumerate(fields):
-                with [col1, col2, col3][i]:
-                    if field["type"] == "select":
-                        field_values[field["name"]] = st.selectbox(
-                            field["label"],
-                            options=field["options"],
-                            index=field["options"].index(field.get("default", field["options"][0])),
-                            key=f"field_{field['name']}"
-                        )
-                    else:
-                        field_values[field["name"]] = st.text_input(
-                            field["label"],
-                            value="",
-                            placeholder=field["placeholder"],
-                            key=f"field_{field['name']}"
-                        )
-        elif len(fields) == 4:
-            col1, col2, col3, col4 = st.columns(4)
-            for i, field in enumerate(fields):
-                with [col1, col2, col3, col4][i]:
+    elif len(fields) == 4:
+        col1, col2, col3, col4 = st.columns(4)
+        for i, field in enumerate(fields):
+            with [col1, col2, col3, col4][i]:
+                if field["type"] == "select":
+                    field_values[field["name"]] = st.selectbox(
+                        field["label"],
+                        options=field["options"],
+                        index=field["options"].index(field.get("default", field["options"][0])),
+                        key=f"field_{field['name']}"
+                    )
+                else:
                     field_values[field["name"]] = st.text_input(
                         field["label"],
                         value="",
@@ -300,57 +308,55 @@ with st.form("annotation_form", clear_on_submit=True):
                         key=f"field_{field['name']}"
                     )
 
-        # Parse coordinates if comma-separated (e.g., "38,38")
-        if 'x' in field_values and field_values['x'] and ',' in field_values['x']:
-            x_val, y_val = parse_coordinates(field_values['x'])
-            field_values['x'] = x_val
-            if y_val and 'y' in field_values:
-                field_values['y'] = y_val
+    # Parse coordinates if comma-separated (e.g., "38,38")
+    if 'x' in field_values and field_values['x'] and ',' in field_values['x']:
+        x_val, y_val = parse_coordinates(field_values['x'])
+        field_values['x'] = x_val
+        if y_val and 'y' in field_values:
+            field_values['y'] = y_val
 
-        # Build action string
-        action = build_action(action_type, field_values)
-        if action:
-            action_params = field_values
+    # Build action string
+    action = build_action(action_type, field_values)
+    if action:
+        action_params = field_values
 
-    # Display final action
-    st.code(action if action else f"{action_type}(...)", language="python")
+# Display final action
+st.code(action if action else f"{action_type}(...)", language="python")
 
-    st.divider()
+st.divider()
 
-    # Submit button
-    submitted = st.form_submit_button("➕ Add to Dataset", type="primary", use_container_width=True)
+# Submit button
+if st.button("➕ Add to Dataset", type="primary", use_container_width=True):
+    # Validate inputs
+    if not uploaded_file:
+        st.error("Please upload a screenshot")
+    elif not task:
+        st.error("Please enter a task description")
+    elif not action:
+        st.error("Please enter an action")
+    else:
+        try:
+            # Read image bytes
+            uploaded_file.seek(0)  # Reset file pointer
+            image_bytes = uploaded_file.read()
 
-    if submitted:
-        # Validate inputs
-        if not uploaded_file:
-            st.error("Please upload a screenshot")
-        elif not task:
-            st.error("Please enter a task description")
-        elif not action:
-            st.error("Please enter an action")
-        else:
-            try:
-                # Read image bytes
-                uploaded_file.seek(0)  # Reset file pointer
-                image_bytes = uploaded_file.read()
+            # Add to database with action type and params
+            sample_id = db.add_sample(
+                dataset_name=st.session_state.current_dataset,
+                image_bytes=image_bytes,
+                task=task,
+                thought=thought if thought else "",
+                action=action,
+                action_type=action_type,
+                action_params=action_params
+            )
 
-                # Add to database with action type and params
-                sample_id = db.add_sample(
-                    dataset_name=st.session_state.current_dataset,
-                    image_bytes=image_bytes,
-                    task=task,
-                    thought=thought if thought else "",
-                    action=action,
-                    action_type=action_type,
-                    action_params=action_params
-                )
+            st.success(f"✅ Added sample to {st.session_state.current_dataset}!")
+            st.balloons()
+            st.rerun()
 
-                st.success(f"✅ Added sample to {st.session_state.current_dataset}!")
-                st.balloons()
-                st.rerun()
-
-            except Exception as e:
-                st.error(f"Failed to add sample: {e}")
+        except Exception as e:
+            st.error(f"Failed to add sample: {e}")
 
 # ============================================================================
 # Export Dataset

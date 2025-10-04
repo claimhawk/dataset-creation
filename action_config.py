@@ -108,9 +108,10 @@ ACTION_CONFIG = {
         "fields": [
             {"name": "x", "type": "coordinate", "label": "X coordinate", "placeholder": "800"},
             {"name": "y", "type": "coordinate", "label": "Y coordinate", "placeholder": "600"},
-            {"name": "direction", "type": "select", "label": "Direction", "options": ["up", "down", "left", "right"], "default": "down"}
+            {"name": "direction", "type": "select", "label": "Direction", "options": ["up", "down", "left", "right"], "default": "down"},
+            {"name": "pixels", "type": "text", "label": "Pixels", "placeholder": "100"}
         ],
-        "template": lambda params: f"scroll(point='<point>{params['x']} {params['y']}</point>', direction='{params['direction']}')"
+        "template": lambda params: f"scroll(point='<point>{params['x']} {params['y']}</point>', direction='{params['direction']}', pixels={params.get('pixels', '100')})"
     },
 
     "finished": {
